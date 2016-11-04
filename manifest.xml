@@ -1,0 +1,20 @@
+<package>
+  <description brief="Reveal ground truth traversability data to the robot based on its position.">
+  Using a know nraversability grid map, the robot receives updates based on its position. This component serves for testing of path planning and path fol
+  </description>
+  <author>Jan Filip/jan.filip2@gmail.com</author>
+  <license></license>
+  <url>http://</url>
+  <logo>http://</logo>
+ 
+ <depend package="base/cmake" />
+ <depend package="slam/orogen/envire" />
+
+  <!--
+   To add any dependencies use the depend tag
+  <depend package="dummy-dependency-0" />
+	...
+  <depend package="dummy-dependency-n-1" />
+  <depend package="dummy-dependency-n" />
+  -->
+</package>
