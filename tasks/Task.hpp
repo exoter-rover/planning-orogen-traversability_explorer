@@ -61,6 +61,10 @@ namespace traversability_explorer {
         int Nrow, Ncol;
         // Description of trapezoidal field of view
         float a,b,l;
+        // max cost used for sbpl library cost mapping
+        static const unsigned char SBPL_MAX_COST = 20;
+        // SBPL COST TO CLASS ID MAPPING
+        int sbplCostToClassID[SBPL_MAX_COST+1];
 
     public:
         Task(std::string const& name = "traversability_explorer::Task");
@@ -69,7 +73,7 @@ namespace traversability_explorer {
 
         /** Default deconstructor of Task
          */
-	~Task();
+	   ~Task();
 
         bool configureHook();
         bool startHook();
@@ -84,7 +88,6 @@ namespace traversability_explorer {
         bool areIntersecting(Eigen::Vector2f& v1, Eigen::Vector2f& v2,
                              Eigen::Vector3f& lineCoeff, 
                              Eigen::Vector2f& vertex1, Eigen::Vector2f& vertex2);
-
     };
 }
 

@@ -129,13 +129,18 @@ void Task::cleanupHook()
 
 void Task::loadTraversabilityMap(std::string filename){
     std::cout<< "TraversabilityExplorer: map being loaded from: "
-    	<< filename << ", correct?" << std::endl;
+        << filename << ", correct?" << std::endl;
    
     /* OPEN THE FILE AND LOAD THE TRAVERSABILITY NUMERIC DATA INTO STD VECTOR */
     std::string line;
     std::ifstream datafile(filename.c_str(), std::ios::in);
     Nrow = 0; Ncol = 0;    
     std::vector <int> row;
+
+    int MIN_COST, MAX_COST;
+    MIN_COST = std::numeric_limits<int>::max();
+    MAX_COST = 0;
+
     if( datafile.is_open() ){
         while ( std::getline(datafile, line) ){
             std::stringstream ss(line);
@@ -144,19 +149,31 @@ void Task::loadTraversabilityMap(std::string filename){
                 int val;
                 std::stringstream numericValue(cell);
                 numericValue >> val;
-                // std::cout << val << ", ";
+                if(val>MAX_COST){
+                    MAX_COST = val;
+                }
+                if(val<MIN_COST){
+                    MIN_COST = val;
+                }
                 row.push_back(val);
                 Ncol++;
             }
-            // std::cout << "adding " << row.size() << " values." << std::endl;
             groundTruth.push_back(row);
             row.clear();
             Nrow++;
         }
         datafile.close(); 
         Ncol /= Nrow;
-        std::cout << "Traversability map of " << Nrow 
-                  << " x "                    << Ncol << "." << std::endl;
+        std::cout << "Cost map of " << Nrow 
+                  << " x "          << Ncol << " loaded." << std::endl;
+        std::cout << "Cost values are in integer values of {" 
+                  << MIN_COST << ", ..., " << MAX_COST << "}."<< std::endl;
+        bool validCostRange = MIN_COST>0 && MAX_COST <= SBPL_MAX_COST+1;
+        if (!validCostRange){
+            std::cout << "Invalid cost range!!!" << std::endl;
+            assert(validCostRange);    
+        }
+        
     } else {
         std::cout << "Problem opening the file" << std::endl;
         return;
@@ -178,36 +195,59 @@ void Task::loadTraversabilityMap(std::string filename){
     mpTravData = boost::shared_ptr<envire::TraversabilityGrid::ArrayType>(&travData, NullDeleter());
 
     // Defines driveability values.
-    envire::TraversabilityClass  unknown(0.85);
-    envire::TraversabilityClass obstacle(0.0);
-    envire::TraversabilityClass drivable(1.0);
-    trav->setTraversabilityClass(0, unknown);    // Unknown ~ Drivable
-    trav->setTraversabilityClass(1, obstacle);   // Obstacle
-    trav->setTraversabilityClass(2, drivable);   // Drivable
+
+    // Defines driveability values.
+    // trav->setTraversabilityClass(0, envire::TraversabilityClass(0.5)); // unknown
     
-    // Set the driveability values
-    // /*
-    //std::cout << "Setting the initial map" << std::endl;
+
+    
+    trav->setTraversabilityClass(0, envire::TraversabilityClass(0.5));
+    std::cout << "Setting class #0 to 0.5 traversability."<< std::endl;
+    
+    
+    
+    for (int i = 0; i < SBPL_MAX_COST; ++i)
+    {
+        sbplCostToClassID[i] = i+2;
+        //std::cout << "Mapping " << i+1 << " to " << i+2 << std::endl;   
+    }
+    sbplCostToClassID[SBPL_MAX_COST] = 1;
+    //std::cout << "Mapping " << SBPL_MAX_COST+1 << " to " << 1 << std::endl;   
+
+    // ASSOCIATING CLASS ID WITH TRAVERSABILITY
+    
+
+    double travVal;
+    // class 1 reserved for obstacle (will be used instead of 21)
+    trav->setTraversabilityClass(1, envire::TraversabilityClass(0.0));
+    std::cout << "Setting class #" << 1
+            <<  " to " << 0.0 << " traversability." << std::endl;
+
+    int cost;
+    // TODO: MAY SKIP CLASSES BELOW MIN_COST IN ORDER NOT TO BIAS UNKNOWN AREAS
+    // those are set to 2nd highest traversability
+    // but 2nd highest registered class, or 2nd highest value in the grid??
+    for(cost = 1; cost < SBPL_MAX_COST+1; ++cost) {
+        travVal = ((double)(SBPL_MAX_COST+1 - cost));
+        travVal /= SBPL_MAX_COST;
+        trav->setTraversabilityClass(sbplCostToClassID[cost-1], envire::TraversabilityClass(travVal));
+        std::cout << "Setting class #" << sbplCostToClassID[cost-1]
+            <<  " to " << travVal << " traversability." << std::endl;
+    }
  
     for(int x=0; x < Nrow;  x++)
     {
         //row = groundTruth.at(x);
         for(int y=0; y < Ncol; y++)
-        {/* Fill in all groundtruth data *
-            if ( row.at(y) == 1 ){  // OBSTACLE
-               travData[y][x] = 0; 
-            } else if (row.at(y) == 0) {
-                travData[y][x] = 0; // Drivable 
-            }
-         // */ 
-
-         /* Set all to unexplored */
-         travData[y][x] = 0; 
-         trav->setProbability(1.0, x, y);
+        {
+            // Set all to unknown
+            trav->setTraversability(0, x, y);   
+            trav->setProbability(1.0, x, y);
         }
     }
     std::cout << "Traversability map initialization completed." << std::endl;
 }
+
 
 void Task::updateTraversabilityMap()
 {
@@ -317,9 +357,11 @@ void Task::updateTraversabilityMap()
         }
 
         /* Fill the cells in FOV from the current data colum */
+        int cost;
         for(int itY = ym; itY <= yM; itY++){
         	if ( itY >= y1 && itY <= y2) {
-        		travData[itY][itX] = groundTruth[itX][itY]; 	
+        		cost = groundTruth[itX][itY];
+                mpTravGrid->setTraversability(sbplCostToClassID[cost-1], itX, itY);   
         	}
         }
     }
